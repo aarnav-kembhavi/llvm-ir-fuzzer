@@ -1,0 +1,37 @@
+# ============================================================
+# LLM-Guided LLVM IR Differential Testing Pipeline
+# Configuration File
+# ============================================================
+
+llm:
+  backend: gemini           # gemini | groq_ai | openai | claude | grok | mock
+  model: gemini-2.5-flash   # Default fallback
+  models:
+    gemini: gemini-2.5-flash          # Free: Google AI Studio (15 RPM)
+    groq_ai: llama-3.3-70b-versatile  # Free: Groq (fastest inference, open-weight)
+    openai: gpt-4o-mini               # Paid: ~$5 trial credits only
+    claude: claude-3-5-haiku-latest   # Paid: No free tier
+    grok: grok-beta                   # Paid: No consistent free tier
+  temperature: 0.7
+  max_retries: 3
+  timeout_seconds: 60
+
+llvm:
+  llvm_as: llvm-as
+  opt: opt
+  llvm_diff: llvm-diff      # optional
+  timeout_seconds: 30
+
+pipeline:
+  seed_dir: seeds/
+  mutant_dir: mutants/
+  artifact_dir: artifacts/
+  iterations: 20
+  seed_strategy: round_robin  # round_robin | random | least_mutated
+
+oracle:
+  compare_levels:
+    - O0
+    - O3
+  detect_crashes: true
+  detect_invalid: true       # re-validate O3 output via llvm-as

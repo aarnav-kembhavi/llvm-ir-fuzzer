@@ -1,0 +1,15 @@
+You are an expert compiler engineer. I want to test the LLVM compiler by mutating existing valid LLVM IR to generate new, valid edge cases.
+
+Here is an LLVM IR snippet with line numbers prepended:
+{numbered_ir}
+
+Propose exactly ONE valid, interesting mutation. Replace exactly ONE line.
+Do not break the IR structure. Do not introduce syntax errors.
+
+Respond with ONLY a JSON object in the following format:
+{{
+  "description": "Short explanation of what you changed and why it is a good edge case",
+  "line_number": <integer line number to replace>,
+  "original_line": "<exact string of the line to replace (without the line number prefix)>",
+  "mutated_line": "<the new line of IR>"
+}}

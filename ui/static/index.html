@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LLVM IR Differential Testing — Dashboard</title>
+<link rel="stylesheet" href="/static/app.css">
+<link rel="icon" href="data:image/svg+xml,&lt;svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'&gt;&lt;text y='.9em' font-size='90'&gt;🐉&lt;/text&gt;&lt;/svg&gt;">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <span class="brand-mark">🐉</span>
+    <div>
+      <div class="brand-title">LLVM IR Differential Testing</div>
+      <div class="brand-sub" id="config-line">loading config…</div>
+    </div>
+  </div>
+  <nav class="tabs" id="nav">
+    <a href="#/runs" data-tab="runs">Runs</a>
+    <a href="#/seeds" data-tab="seeds">Seed Corpus</a>
+    <a href="#/new" data-tab="new">New Run</a>
+  </nav>
+  <div class="topbar-right">
+    <span class="pipeline-dot" id="pipeline-dot" title="pipeline idle"></span>
+    <button class="theme-toggle" id="theme-toggle" title="Toggle light / dark">◐</button>
+  </div>
+</header>
+
+<main id="view" class="view"></main>
+
+<div class="tooltip" id="tooltip" hidden></div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>
