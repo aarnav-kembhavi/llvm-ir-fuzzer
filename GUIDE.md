@@ -171,6 +171,86 @@ The iteration's folder in `artifacts/` contains everything needed to report it: 
 
 ---
 
+## 5½. Real results — a 300-run, explained
+
+These are actual measured numbers from running the pipeline **300 times with the LLM mutator and 300 times with the random baseline**, on the same 16 seeds, then differentially testing every result. Nothing here is estimated. *(Runs `run_20260713_210524` (LLM) and `run_20260713_212634` (baseline); a visual version of all these charts lives in the benchmark report.)*
+
+If you present this project, this is the section to build your talk around. Each result below is one slide.
+
+### Result 1 — The headline: the LLM is 3.2× more efficient
+
+| | LLM-guided | Random baseline |
+|---|---|---|
+| Valid mutant rate | **37.0%** (111/300) | **11.7%** (35/300) |
+| Discard rate (wasted work) | 63.0% | 88.3% |
+
+**What "valid mutant rate" means:** the share of mutations that were actually valid LLVM IR — code the compiler accepts and will try to optimize. The rest are thrown away instantly because they broke the syntax or SSA rules.
+
+**Why it's the whole point:** a mutant that gets rejected at the door never reaches the optimizer, so it can never find an optimizer bug — it just tests the syntax checker. The LLM produces **3.2× more testable mutants** than random mutation (37% ÷ 11.7% ≈ 3.2). That ratio *is* the thesis of the project: an AI that understands the code keeps far more of its edits inside "valid program" space. The random mutator wastes ~88% of its attempts; the LLM wastes ~63%.
+
+### Result 2 — Where the 300 LLM iterations went (verdict distribution)
+
+Of the LLM's 300 iterations:
+- **111 → DIVERGENT** — valid, reached the optimizer, and `-O0` vs `-O3` produced different output. *This is normal and expected* — the optimizer's job is to change code.
+- **189 → SKIPPED** — discarded before testing because the mutant was invalid or no mutation was produced.
+- **0 → CRASH / INVALID / SEMANTIC_BUG** — no bug candidates.
+
+**Read this as:** every valid mutant landed on `DIVERGENT`, and none broke the compiler. Which brings us to the honest caveat...
+
+> **Finding zero bugs is the correct, expected result.** LLVM is one of the most heavily-tested pieces of software on earth. A 300-iteration run is a *proof that the machine works*, not a bug-hunting campaign — those run for millions of iterations. Any professor who knows compilers will expect zero bugs here; claiming otherwise would be the red flag.
+
+### Result 3 — The competence map: where LLM mutation is easy vs. hard
+
+This is the most *interesting* slide. The LLM's valid rate varies a lot depending on which IR feature it's editing:
+
+| Easiest for the LLM | Rate | | Hardest for the LLM | Rate |
+|---|---|---|---|---|
+| Arithmetic | 63% | | Struct | 16% |
+| Integer overflow | 63% | | Vector | 21% |
+| Branch | 53% | | Switch | 21% |
+| Custom seed | 50% | | Memory | 21% |
+| Loop | 47% | | Exception-like | 6% |
+
+**What this tells you:** simple, local patterns (integer math, overflow flags, straight-line branches) are easy for the LLM to mutate validly. The hard ones are exactly the features with the most rigid structure — `struct` type layouts, vector width/type matching, `switch` case tables, and exception-handling scaffolding. Edit one line there and you usually violate a rule somewhere else.
+
+**The honest nuance worth saying out loud:** on three of the gnarliest patterns — **Switch (21% vs 26%), Struct (16% vs 22%), and Exception-like (6% vs 11%)** — the *random* baseline actually did slightly better than the LLM. Why? On heavily-constrained code, the LLM often tries an "intelligent" edit that trips a subtle rule, whereas random deletion sometimes just removes a whole line cleanly and stays valid. Presenting this makes your analysis more credible, and it points straight at future work: better prompting for structured IR.
+
+### Result 4 — Convergence: is 37% a real number or a fluke?
+
+If you plot the **running valid rate** after each iteration, it swings wildly at the start (one lucky mutant early on can read as "50%"), then settles down and hovers in the **37–42%** band for the back half of the run, ending at 37%.
+
+**Why this slide matters:** it answers the first skeptical question — *"you ran it once, is that number even repeatable?"* The curve flattening out is visual proof that 300 iterations is enough for the percentage to stabilize. It's no longer a small-sample coincidence; it's a stable property of the LLM+seed combination.
+
+### Result 5 — Failure-mode breakdown: where the mutants die
+
+Of the LLM's 300 attempts, classified by what happened:
+
+| Outcome | Count | What it means |
+|---|---|---|
+| **Valid mutant** | 111 | passed `llvm-as`, got tested |
+| **Invalid IR** | 107 | the LLM's edit broke the syntax/SSA rules — `llvm-as` rejected it |
+| **No-op / skipped** | 74 | the pipeline produced no usable mutation |
+| **Bad plan (JSON)** | 8 | the LLM's reply wasn't parseable instructions |
+
+**Read this as a diagnosis of the losses.** The biggest failure bucket isn't the AI misbehaving (only 8 unparseable replies out of 300) — it's that **107 syntactically-plausible edits still violated LLVM's strict rules.** That's the real difficulty of the problem: LLVM IR is unforgiving, and even a smart edit frequently breaks an invariant elsewhere. This is your "why this is hard" slide.
+
+### Result 6 — Throughput & scale: the cost of intelligence
+
+| | LLM-guided | Random baseline |
+|---|---|---|
+| Time per iteration | 4.2s (waiting on the AI API) | 0.016s (instant) |
+| Total for 300 iterations | 21.1 min | 4.7s |
+
+The LLM is **~260× slower per iteration** because every mutation is a network call to the language model. The random mutator is basically free. So the trade is: *the LLM is far slower but far more accurate; random is instant but mostly wasted effort.*
+
+**Scaling it up:** a serious bug-hunting campaign of **1,000,000 iterations** would take ≈**49 days** running one at a time — but each iteration is independent, so running **50 in parallel** brings it down to **≈1 day**. This is the slide that frames the project honestly as a *proof-of-concept* that would need parallel compute to hunt real bugs.
+
+### One more caveat: the execution oracle found nothing to run
+
+Mode B (the execution oracle) logged **0 EXEC_MATCH** results this run. That's not a failure — it's because almost all 16 seeds are *library functions with no `main()`*, so there was nothing to compile-and-run, and the oracle correctly fell back to structural comparison every time. **This is the single clearest place the project can be improved:** add seeds with a `define i32 @main()` (see the next section) and the execution oracle — the only mode that can catch a real `SEMANTIC_BUG` — finally has something to chew on.
+
+---
+
 ## 6. Why add your own seed?
 
 The built-in 15 seeds are a starter pack, not a boundary. Every seed is a **neighborhood of programs being explored** — the mutations only ever wander one line away from a seed, so the pipeline can only find bugs *near the patterns the corpus contains*.
